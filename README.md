@@ -1,8 +1,9 @@
-# 🚀 K3s Raspberry Pi Cluster with Argo CD + MetalLB
+# 🚀 K3s Raspberry Pi Cluster with Argo CD + MetalLB + Monitoring
 
 This repository contains the GitOps configuration for a **K3s cluster on Raspberry Pi 4**, managed by **Argo CD**.  
-It bootstraps **MetalLB** for LoadBalancer services and deploys a sample **Nginx app**.  
-The **Argo CD UI** is always available at **`https://192.168.178.212`**.
+It bootstraps **MetalLB** for LoadBalancer services, deploys **Argo CD**, a test **Nginx app**, and the **Prometheus + Grafana monitoring stack**.  
+
+The cluster is accessible from your **laptop over LAN** with fixed IPs.
 
 ---
 
@@ -11,19 +12,17 @@ The **Argo CD UI** is always available at **`https://192.168.178.212`**.
 ```
 k3s-argocd-pi/
 ├── apps/
-│   ├── argocd/                     # ArgoCD service override (LB on 192.168.178.212)
-│   │   └── argocd-server-service.yaml
+│   ├── argocd/                     # Argo CD service override (LB on 192.168.178.212)
 │   ├── metallb/                    # MetalLB IP pool + L2Advertisement
-│   │   └── metallb-config.yaml
+│   ├── monitoring/                 # Helm values for kube-prometheus-stack
 │   └── nginx/                      # Nginx test app
-│       ├── deployment.yaml
-│       └── service.yaml
-├── argocd-apps/                    # ArgoCD Applications
-│   ├── argocd-app.yaml             # ArgoCD manages its own LB service
+├── argocd-apps/                    # Argo CD Applications
+│   ├── argocd-app.yaml             # Manages Argo CD service
 │   ├── metallb-app.yaml            # Deploys MetalLB
-│   ├── nginx-app.yaml              # Deploys Nginx
+│   ├── monitoring-app.yaml         # Deploys Prometheus + Grafana
+│   ├── nginx-app.yaml              # Deploys Nginx test app
 │   └── root-app.yaml               # Root App (App of Apps)
-└── projects/                       # Reserved for ArgoCD projects
+└── projects/                       # Reserved for Argo CD projects
 ```
 
 ---
@@ -39,7 +38,8 @@ k3s-argocd-pi/
 - **IP Pool**: `192.168.178.210–220`  
 - **Fixed IPs**:  
   - ArgoCD → `192.168.178.212`  
-  - Apps → dynamic IPs from pool  
+  - Nginx → `192.168.178.211`  
+  - Grafana → `192.168.178.213`  
 
 ---
 
@@ -65,6 +65,7 @@ kubectl apply -f argocd-apps/root-app.yaml -n argocd
 ArgoCD will then sync:
 - **MetalLB** (IP pool `192.168.178.210–220`)  
 - **ArgoCD service override** (UI on `192.168.178.212`)  
+- **Monitoring stack (Prometheus + Grafana)**  
 - **Nginx test app**  
 
 ---
@@ -75,26 +76,25 @@ ArgoCD will then sync:
 ```
 https://192.168.178.212
 ```
-
 Default admin password:
 ```bash
 kubectl -n argocd get secret argocd-initial-admin-secret   -o jsonpath="{.data.password}" | base64 -d
 ```
 
-### Nginx App
-Check assigned IP:
-```bash
-kubectl get svc nginx-service
-```
-
-Example:
-```
-nginx-service   LoadBalancer   10.43.219.63   192.168.178.213   80:31345/TCP   2m
-```
-
-Then open in your browser:
+### Grafana (Monitoring)
 ```
 http://192.168.178.213
+```
+Login with:
+- Username: `admin`
+- Password:
+  ```bash
+  kubectl -n monitoring get secret monitoring-grafana     -o jsonpath="{.data.admin-password}" | base64 -d
+  ```
+
+### Nginx Test App
+```
+http://192.168.178.211
 ```
 
 ---
@@ -109,17 +109,22 @@ http://192.168.178.213
 
 ## 🔧 Troubleshooting
 
-- **ArgoCD app shows “Unknown”** → check `repoURL` and `targetRevision` in your Application manifests.  
-- **No external IP assigned** → make sure MetalLB is installed and the IP pool (`192.168.178.210–220`) doesn’t overlap with router DHCP.  
-- **Can’t reach ArgoCD UI** → confirm that the `argocd-server` Service is `LoadBalancer` with `loadBalancerIP: 192.168.178.212`.  
-- **Cluster clock skew** → if TLS errors occur, verify time on the Pi:
+- **Service stuck at `<pending>`** → another service may be holding the IP, check:
   ```bash
-  date
+  kubectl get svc -A -o wide | grep <IP>
   ```
+- **Grafana unreachable** → flush stale ARP cache on laptop:
+  ```bash
+  sudo arp -d 192.168.178.213
+  ```
+- **ArgoCD app shows “Unknown”** → ensure `helm.values` is inline, not pointing to missing files.
+- **No external IP assigned** → confirm MetalLB is running and pool `192.168.178.210–220` doesn’t overlap with router DHCP.
 
 ---
 
-✅ With this setup:  
-- ArgoCD always lives at a **fixed IP (`192.168.178.212`)**  
-- Apps get IPs dynamically (unless you set `loadBalancerIP`)  
-- Everything is managed through **GitOps**  
+## ✅ Current State
+
+- ArgoCD UI → **192.168.178.212**  
+- Grafana → **192.168.178.213**  
+- Nginx test app → **192.168.178.211**  
+- All apps are managed via **GitOps** with drift prevention enabled.
