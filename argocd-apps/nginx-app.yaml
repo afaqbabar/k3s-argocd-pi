@@ -6,13 +6,25 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: 'https://github.com/afaqbabar/k3s-argocd-pi.git'
+    repoURL: https://github.com/afaqbabar/k3s-argocd-pi.git
     path: apps/nginx
     targetRevision: main
   destination:
     server: https://kubernetes.default.svc
     namespace: default
+  ignoreDifferences:
+    - kind: Service
+      jsonPointers:
+        - /spec/clusterIP
+        - /spec/clusterIPs
+        - /status
+    - kind: ServiceAccount
+      jsonPointers:
+        - /secrets
   syncPolicy:
     automated:
       selfHeal: true
       prune: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
