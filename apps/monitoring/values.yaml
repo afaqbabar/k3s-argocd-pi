@@ -1,0 +1,81 @@
+# -- Keep this Pi-friendly (adjust as needed)
+prometheus:
+  prometheusSpec:
+    retention: 5d
+    retentionSize: "2GB"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  service:
+    type: ClusterIP  # switch to LoadBalancer if you want external access
+
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+  service:
+    type: ClusterIP
+
+grafana:
+  enabled: true
+  adminPassword: "admin"  # change in Git, or omit to auto-generate a secret
+  service:
+    type: LoadBalancer
+    loadBalancerIP: 192.168.178.213  # <-- uses your MetalLB pool
+    port: 80
+    targetPort: 3000
+  grafana.ini:
+    server:
+      root_url: http://192.168.178.213
+      serve_from_sub_path: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      cpu: 150m
+      memory: 128Mi
+
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+# Disable components you don't need (saves RAM/CPU)
+defaultRules:
+  rules:
+    etcd: false
+    kubeScheduler: false
+    kubeControllerManager: false
+
+
+# If you want Prometheus externally too, add:
+prometheus:
+  service:
+    type: LoadBalancer
+    loadBalancerIP: 192.168.178.214
+
+
