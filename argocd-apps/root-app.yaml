@@ -3,18 +3,18 @@ kind: Application
 metadata:
   name: root-app
   namespace: argocd
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
-    repoURL: https://github.com/afaqbabar/k3s-argocd-pi
-    targetRevision: main
+    repoURL: 'https://github.com/YOUR_GITHUB_USERNAME/k3s-argocd-pi.git'
     path: argocd-apps
+    targetRevision: main
+    directory:
+      recurse: true
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
   syncPolicy:
     automated:
-      prune: true
       selfHeal: true
+      prune: true
